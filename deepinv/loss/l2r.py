@@ -163,14 +163,13 @@ class L2RLoss(Loss):
             time.
         :param torch.nn.Module recorruptor: Trainable re-corruption module.
         """
-        if metric is None:
-            metric = torch.nn.MSELoss()
         super(L2RLoss, self).__init__()
+        self.metric = metric
         self.alpha = alpha
         self.eval_n_samples = eval_n_samples
 
         if recorruptor is None:
-            self.recorruptor = Recorruptor()
+            self.recorruptor = Recorruptor(multiplicative=True)
         else:
             self.recorruptor = recorruptor
 
