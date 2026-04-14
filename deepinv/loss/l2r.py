@@ -27,7 +27,7 @@ class Recorruptor(torch.nn.Module):
         ``kernel_size=1``.
     """
 
-    def __init__(self, depth=5, feats=4, kernel_size=3, multiplicative=False, sigma=0.4):
+    def __init__(self, depth=5, feats=4, kernel_size=3, multiplicative=False, sigma=0.1, net=None):
         super(Recorruptor, self).__init__()
 
         self.multiplicative = multiplicative
@@ -39,13 +39,19 @@ class Recorruptor(torch.nn.Module):
 
 
         # self.net = MonotonicFullyConnectedNet(feats_list, t_in=t_in, base_act=F.softplus)
-        self.net = nn.Sequential(
-            nn.Linear(1, feats),
-            nn.Softplus(),
-            nn.Linear(feats, feats),
-            nn.Softplus(),
-            nn.Linear(feats, 1)
-        )
+
+        if net == "identity":
+            self.net = nn.Identity()
+        else:
+            self.net = nn.Sequential(
+                nn.Linear(1, feats),
+                nn.Softplus(),
+                nn.Linear(feats, feats),
+                nn.Softplus(),
+                nn.Linear(feats, 1)
+            )
+
+
         self.norm_layer  = nn.BatchNorm1d(1, affine=False, momentum=0.9)
 
         if self.kernel_size > 1:
@@ -147,10 +153,11 @@ class L2RLoss(Loss):
 
     def __init__(
         self,
-        metric: Metric,
+        metric: Metric | torch.nn.Module | None = None,
         alpha: float = 0.5,
         eval_n_samples: int = 5,
         recorruptor: torch.nn.Module | None = None,
+        device: torch.device | None = None,
         **kwargs,
     ) -> None:
         r"""
@@ -163,6 +170,10 @@ class L2RLoss(Loss):
             time.
         :param torch.nn.Module recorruptor: Trainable re-corruption module.
         """
+
+        if metric is None:
+            metric = torch.nn.MSELoss()
+
         super(L2RLoss, self).__init__()
         self.metric = metric
         self.alpha = alpha
@@ -172,9 +183,11 @@ class L2RLoss(Loss):
             self.recorruptor = Recorruptor(multiplicative=True)
         else:
             self.recorruptor = recorruptor
+        
+        self.recorruptor.to(device)
 
         self.recorruptor_optimizer = torch.optim.Adam(self.recorruptor.parameters(), 
-                                                      lr=1e-3, 
+                                                      lr=1e-6, 
                                                       weight_decay=1e-6)
 
 
